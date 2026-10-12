@@ -61,12 +61,20 @@ var (
 	_ reconcile.Reconciler = (*Reconciler)(nil)
 )
 
+// smbServerPendingTimeout is how long the SMB server pod may stay unable to pull its
+// image or be scheduled before the shared-storage request is failed.
+const smbServerPendingTimeout = 10 * time.Minute
+
 const (
 	defaultRequeueDelay                        = 100 * time.Millisecond
 	deletingStorageRequestRequeueDelay         = 5 * time.Second
 	ConditionTypeSMBCSIDriverInstalled         = "SMBCSIDriverInstalled"
 	ConditionTypeSharedStorageResourcesCreated = "SharedStorageResourcesCreated"
 	ConditionReasonAdmissionRejected           = "AdmissionRejected"
+	ConditionTypeSMBServerReady                = "SMBServerReady"
+	ConditionReasonImagePullFailed             = "ImagePullFailed"
+	ConditionReasonUnschedulable               = "Unschedulable"
+	ConditionReasonPodReady                    = "PodReady"
 	ConditionTypeCleanupSuccessful             = "CleanupSuccessful"
 	ConditionReasonSomeObjectsPendingDeletion  = "SomeObjectsPendingDeletion"
 	ConditionReasonAllObjectsDeleted           = "AllObjectsDeleted"
