@@ -13,6 +13,8 @@ The helper also uses `/tmp` for its working directory, home, and cache.
 
 The three outputs use the same producer version from
 `infra/nonroot-images/vX.Y.Z`. Their upstream versions remain independent.
+`VERSION` records the new producer baseline. The release registration requires
+a release branch, so a merge to `main` cannot publish a stable helper version.
 Each Dockerfile pins its upstream manifest digest and records it in image
 labels. `docker-bake.hcl` builds all outputs together. `NOTICE` records the source and attribution requirements.
 

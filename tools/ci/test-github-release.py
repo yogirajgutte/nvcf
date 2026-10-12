@@ -1384,11 +1384,12 @@ class GithubReleaseTest(unittest.TestCase):
         ("nvcf-observability-stack", "deploy/stacks/observability"),
     )
 
-    def test_the_stacks_release_from_a_branch_and_nothing_else_does(self):
+    def test_guarded_sources_release_only_from_a_branch(self):
         root = SCRIPT_PATH.parents[2]
         metadata = json.loads(SCRIPT_PATH.with_name("github-release-subprojects.json").read_text())
         by_id = {service["id"]: service for service in metadata["services"]}
-        expected = {stack_id for stack_id, _path in self.RELEASE_BRANCH_STACKS}
+        guarded_sources = self.RELEASE_BRANCH_STACKS + (("nonroot-images", "infra/nonroot-images"),)
+        expected = {service_id for service_id, _path in guarded_sources}
 
         declared = {s["id"] for s in metadata["services"] if s.get("release_branch_only")}
         self.assertEqual(declared, expected)
@@ -1405,7 +1406,7 @@ class GithubReleaseTest(unittest.TestCase):
                 # nothing and the subproject would silently stop releasing.
                 self.assertNotIn("dev_prerelease", service)
 
-        for stack_id, path in self.RELEASE_BRANCH_STACKS:
+        for stack_id, path in guarded_sources:
             with self.subTest(service=stack_id):
                 service = by_id[stack_id]
                 self.assertEqual(service["path"], path)
