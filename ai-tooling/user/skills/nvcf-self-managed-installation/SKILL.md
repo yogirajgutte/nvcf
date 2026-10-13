@@ -11,13 +11,13 @@ description: >-
 license: Apache-2.0
 compatibility: Requires helmfile >= 1.1.0 < 1.2.0, helm >= 3.12, helm-diff plugin, kubectl matching cluster version
 author: "nvcf-core-eng <nvcf-core-eng@exchange.nvidia.com>"
-version: "1.0.0"
+version: "1.1.0"
 tags: [nvcf, self-managed, helmfile, self-hosted, control-plane, compute-plane, cli-profile, installation, deployment, pull-secrets]
 tools: [Shell, Read, Edit, Grep, Glob]
 metadata:
   internal: false
   author: "nvcf-core-eng <nvcf-core-eng@exchange.nvidia.com>"
-  version: "1.0"
+  version: "1.1.0"
   tags: [nvcf, self-managed, helmfile, self-hosted, control-plane, compute-plane, cli-profile, installation, deployment, pull-secrets]
   languages: [bash, yaml]
   frameworks: [helmfile, helm, kubectl]
@@ -26,23 +26,25 @@ metadata:
 
 # NVCF Self-Managed Stack Operations
 
-Operational guide for matching NVCF control-plane and compute-plane Helmfile bundles.
+Operational guide for compatible NVCF control-plane and compute-plane Helmfile bundles.
 
 ## Instructions
 
-Use this skill for install, upgrade, or teardown work in matching `nvcf-self-managed-stack` and `nvcf-compute-plane-stack` bundles; keep Helmfile values and CLI profile handoffs separate. For `functionType: "LLM"`, read [LLM Function Enablement](references/helmfile-structure.md#llm-function-enablement).
+Use this skill for install, upgrade, or teardown work in compatible `nvcf-self-managed-stack` and `nvcf-compute-plane-stack` bundles; keep Helmfile values and CLI profile handoffs separate. For `functionType: "LLM"`, read [LLM Function Enablement](references/helmfile-structure.md#llm-function-enablement).
 
 ## Prerequisites
 
 Ask for the extracted `nvcf-self-managed-stack` path. For split installation,
-also require the matching-version `nvcf-compute-plane-stack` path. Verify both:
+also require the compatible `nvcf-compute-plane-stack` path. An umbrella bundle
+records the exact combination; its component versions can differ. Verify both:
 
 ```bash
 ls <control-plane-stack>/helmfile.d/ <control-plane-stack>/environments/ <control-plane-stack>/secrets/ <control-plane-stack>/global.yaml.gotmpl
 ls <compute-plane-stack>/helmfile.d/ <compute-plane-stack>/environments/ <compute-plane-stack>/global.yaml.gotmpl
 ```
 
-If either directory is missing, download matching bundle versions from NGC:
+If either directory is missing, download the versions required by the selected
+qualified combination from NGC:
 
 ```bash
 ngc registry resource download-version <org>/nvcf-self-managed-stack:<version>
@@ -52,6 +54,9 @@ ngc registry resource download-version <org>/nvcf-compute-plane-stack:<version>
 Control-plane commands below assume the control-plane bundle root. Split-flow
 commands and root substitution are in
 [Split Compute-Plane Installation](references/compute-plane-installation.md).
+
+For umbrella archives and CLI selectors, see [Umbrella bundles](references/umbrella-bundles.md).
+Component versions can differ; retain the manifest's exact combination.
 
 ## Before You Start
 
@@ -463,35 +468,9 @@ kubectl get events -n <ns> --sort-by='.lastTimestamp'  # Recent events
 | `Pending` pods | Node selector mismatch or no storage class | `kubectl describe pod`, check labels and storage |
 | Helm release in `failed` state | First install failed partway | `helmfile destroy` the release, then `sync` again |
 | Account bootstrap timeout | Wrong base64 credentials in secrets file | Check `kubectl logs job/nvcf-api-account-bootstrap -n nvcf` |
-| function / account calls return `404 Unknown client_id` | The account-bootstrap post-install hook never ran: the `api` release install failed, or was repaired with live patches instead of a clean re-sync, so the hook (and the account) was skipped | Verify and re-run the hook; see [Verify the account bootstrap ran](#verify-the-account-bootstrap-ran) |
+| function / account calls return `404 Unknown client_id` | The account-bootstrap post-install hook never ran: the `api` release install failed, or was repaired with live patches instead of a clean re-sync, so the hook (and the account) was skipped | Verify and re-run the hook; see [Verify the account bootstrap ran](references/account-bootstrap.md) |
 | Services fail to read vault secrets; `secrets.json` not found | Vault path hardcoded to `/home/app/vault/` in `_helpers.tpl`; the runtime resolves the mounted path relative to the working directory and drops the leading `/` | Override `podAnnotations` and set `JAVA_TOOL_OPTIONS: "-Duser.dir=/"` in release values |
 | NATS connection fails at startup; placement tag mismatch | NATS server tags hardcoded to `dc:ncp`; app derives tag from `AWS_REGION` (e.g., `us-gov-west-1`) | Set `AWS_REGION=ncp` and `NVCF_AWS_REGION=ncp` in env config |
-
-### Verify the account bootstrap ran
-
-The default account is created by a **`post-install` hook on the `api` release**
-(`job/nvcf-api-account-bootstrap` in `nvcf`). Because it is a post-install hook, it only
-fires on a successful `api` install. If that install failed and you repaired it with live
-patches (rather than a clean re-sync), the hook never runs, no account is created, and
-every subsequent function/account call returns a cryptic `404 Unknown client_id` with
-nothing obviously wrong in the running pods.
-
-Verify it ran after the first sync:
-
-```bash
-kubectl get job -n nvcf nvcf-api-account-bootstrap \
-  -o jsonpath='{.status.succeeded}'   # expect 1
-```
-
-If the job is absent or `0`, re-run it by re-syncing the `api` release so the hook fires
-again (delete the prior job first if it lingers in a completed/failed state and blocks the
-hook):
-
-```bash
-kubectl delete job -n nvcf nvcf-api-account-bootstrap --ignore-not-found
-HELMFILE_ENV=<env> helmfile --selector name=api sync
-kubectl logs -n nvcf job/nvcf-api-account-bootstrap   # confirm the account was created
-```
 
 ## Additional Resources
 

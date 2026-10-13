@@ -12,6 +12,20 @@ description: |
   monitor, cluster rotate, cluster delete, helm task, helm-based task,
   task secrets, update task secrets, retrieve task results, bulk fetch tasks,
   task results, NVCT, NVCT task, NVCT batch job.
+license: Apache-2.0
+compatibility: Requires nvcf-cli, Helm 3, Helmfile 1.1, kubectl, and access to the selected stack artifacts
+author: "nvcf-core-eng <nvcf-core-eng@exchange.nvidia.com>"
+version: "1.1.0"
+tags: [nvcf, self-managed, cli, umbrella]
+tools: [Shell, Read]
+metadata:
+  internal: false
+  author: "nvcf-core-eng <nvcf-core-eng@exchange.nvidia.com>"
+  version: "1.1.0"
+  tags: [nvcf, self-managed, cli, umbrella]
+  languages: [bash, yaml]
+  frameworks: [helm, helmfile, kubernetes]
+  domain: cloud-infrastructure
 allowed-tools: Bash, Read, AskUserQuestion
 argument-hint: "[install|status|check|deploy-function|register-cluster|teardown] [args]"
 ---
@@ -38,6 +52,34 @@ Token Budget:
 - Any task operation: create / run / submit / monitor / cancel / delete / list tasks, helm task, update task secrets, retrieve task results, bulk fetch task details.
 - Any reference to `NVCT`, `NVCT task`, or `NVCT batch job` (list / run / cancel / delete / results).
 - Any reference to `NVCFBackend`, `NVCA`, ICMS, helm releases like `helm-nvcf-*`, or `icms.<domain>` / `api.<domain>` URLs.
+
+## Instructions
+
+Read the command's installed help before using optional flags. Keep the selected
+product identity distinct from the observed installed component versions.
+Follow repository cleanup and isolation guidance before local cluster QA.
+
+## Select an umbrella release
+
+With a CLI that supports umbrella selection, pass `--umbrella-release X.Y.Z`
+to select the exact stable product bundle. For an offline or candidate archive,
+pass `--umbrella-bundle /path/to/nvcf-X.Y.Z.tar.gz` and its separately trusted
+`--umbrella-sha256 sha256:HEX`. Use `--umbrella-cache-dir` for isolated testing.
+
+Render before applying:
+
+```bash
+nvcf-cli self-hosted install --control-plane --no-apply \
+  --umbrella-release X.Y.Z --env YOUR_ENV
+```
+
+Prepare environment and secret inputs in the resolved stack directories. Keep
+one selection across registration, install, status, and teardown. The three
+component versions can differ; use the bundled manifest's combination. Do not
+combine umbrella selection with explicit component stack flags. Omit the
+umbrella selector to retain the existing local, Git, OCI, and built-in sources.
+Per-component migration and upgrade checks still apply. A selected bundle does
+not mean every plane has been installed, and upgrades remain staged.
 
 ## Quick start
 
@@ -85,7 +127,7 @@ nvcf-cli self-hosted uninstall --no-apply --compute-plane --cluster-name=ncp-loc
 
 > `up` vs `compute-plane register` and `install`. `up` always installs both planes; use it for the first install. To attach an Nth compute cluster to a running control plane, register it with `compute-plane register` and install it with `compute-plane install`.
 >
-> **`down` always with `--plan-only` first.** Show the user the `willUninstall.commands[]` array before running for real.
+> `down` always with `--plan-only` first. Show the user the `willUninstall.commands[]` array before running for real.
 
 ## Authentication
 
@@ -106,7 +148,7 @@ Token generation flow:
 
 1. Point the CLI at your self-hosted endpoints. Defaults target production NVCF; override with env vars or a yaml file (`--config <path>`, `./.nvcf-cli.yaml`, or `~/.nvcf-cli.yaml`; a full template ships at `src/clis/nvcf-cli/.nvcf-cli.yaml.template`).
 
-   `NVCF_BASE_HTTP_URL` / `API_KEYS_SERVICE_URL` / `NVCF_BASE_GRPC_URL` tell the CLI *where to send requests*. `API_HOST` / `API_KEYS_HOST` / `INVOKE_HOST` set the `Host:` header on those requests — needed when every NVCF service sits behind a single gateway that routes by hostname (Envoy Gateway HTTPRoute on `api.<ELB>`, `api-keys.<ELB>`, `invocation.<ELB>`, `llm.<ELB>`). Skip the three Host vars when the base URL already resolves to the right service.
+   `NVCF_BASE_HTTP_URL` / `API_KEYS_SERVICE_URL` / `NVCF_BASE_GRPC_URL` tell the CLI *where to send requests*. `API_HOST` / `API_KEYS_HOST` / `INVOKE_HOST` set the `Host:` header on those requests ,  needed when every NVCF service sits behind a single gateway that routes by hostname (Envoy Gateway HTTPRoute on `api.<ELB>`, `api-keys.<ELB>`, `invocation.<ELB>`, `llm.<ELB>`). Skip the three Host vars when the base URL already resolves to the right service.
 
    Env-var form:
 
@@ -145,29 +187,29 @@ After `init`, the credentials live in `~/.nvcf-cli.state`, so later commands wor
 |---|---|---|
 | `nvcf-cli self-hosted check --pre [--local-only \| --control-plane-context=X --compute-plane-context=Y]` | Pre-flight: local-host tools, registry credentials, and cluster-side prerequisites for both planes. Pass both context flags or neither | Always run first on a new environment |
 | `nvcf-cli self-hosted install --control-plane \| kubectl apply -f -` | Render + apply the control plane | When you want manual control over apply (GitOps-friendly) |
-| `nvcf-cli self-hosted install --compute-plane --cluster-name=X \| kubectl apply -f -` | Register cluster + render compute plane | Same — manual apply path |
-| `nvcf-cli self-hosted up --cluster-name=X` | One-shot first install: pre-flight → control plane → register → compute plane | Standard install path (both planes from scratch) |
+| `nvcf-cli self-hosted install --compute-plane --cluster-name=X \| kubectl apply -f -` | Register cluster + render compute plane | Same ,  manual apply path |
+| `nvcf-cli self-hosted up --cluster-name=X` | One-shot first install: pre-flight -> control plane -> register -> compute plane | Standard install path (both planes from scratch) |
 | `nvcf-cli self-hosted up --plan-only --cluster-name=X` | Dry-run: emit phase-by-phase plan + ETA without changing state | Agent / CI preview before commit |
 | `nvcf-cli self-hosted compute-plane register --control-plane-profile=P --cluster-name=X --kube-context=Y --output=V`, then `nvcf-cli self-hosted compute-plane install --values=V --kube-context=Y` | Add a new compute plane to an existing control plane (no CP install) | Adding the 2nd, 3rd, ... GPU cluster after the initial `up` |
 | `nvcf-cli self-hosted uninstall --control-plane` | Per-plane primitive: `helmfile destroy` on the control plane (refuses if compute planes still registered) | Final teardown after all compute planes are gone, or scripted pipelines |
 | `nvcf-cli self-hosted uninstall --compute-plane --cluster-name=X` | Per-plane primitive: `helmfile destroy` on a compute plane (no ICMS unregister, no drain) | Just remove the helm releases without the ICMS-side cleanup |
 | `nvcf-cli self-hosted uninstall --no-apply <plane>` | Render delete YAML via `helm get manifest` | GitOps; `\| kubectl delete -f -` or commit + Argo applies |
-| `nvcf-cli self-hosted down --cluster-name=X` | Orchestrator: drain → uninstall --compute-plane → cluster delete in ICMS | Standard "remove one GPU cluster" path |
+| `nvcf-cli self-hosted down --cluster-name=X` | Orchestrator: drain -> uninstall --compute-plane -> cluster delete in ICMS | Standard "remove one GPU cluster" path |
 | `nvcf-cli self-hosted down --all --confirm` | Orchestrator: tear down every registered compute plane + control plane | Full uninstall |
-| `nvcf-cli self-hosted down --plan-only --cluster-name=X` | Dry-run preview (phases + helm releases + ICMS rows + ETAs; no helm/helmfile contact) | **ALWAYS run before any actual `down`** |
+| `nvcf-cli self-hosted down --plan-only --cluster-name=X` | Dry-run preview (phases + helm releases + ICMS rows + ETAs; no helm/helmfile contact) | ALWAYS run before any actual `down` |
 | `nvcf-cli self-hosted status [--cluster-name=X] [--watch] [--json]` | Snapshot dashboard of cluster identity + component health + recent events | Routine health checks; `--watch` for live |
 | `nvcf-cli init` | Mint admin token from API Keys service via the public api gateway | Before any cluster-management operation; idempotent |
 | `nvcf-cli cluster register --name=X --nca-id=Y --region=Z [--ignore-existing]` | Register a cluster JWKS+OIDC issuer with ICMS | Standalone register (without compute-plane install) |
 | `nvcf-cli cluster list-registered --nca-id=Y [--icms-url=URL]` | List self-hosted cluster registrations from ICMS | Check registered compute-plane names and IDs with the admin token |
 | `nvcf-cli cluster rotate --cluster-id=ID` | Rotate cluster JWKS in ICMS | When NVCA's K8s signing key changed and PSAT verification started 401-ing |
-| `nvcf-cli cluster delete --cluster-id=ID` | Remove cluster registration from ICMS | **Confirm with user.** Destroys ICMS state for the cluster. |
-| `nvcf-cli api-key generate --description="…" --expires-in=1h` | Mint both a function API key and a task API key (default) | Before invoking functions or creating tasks; run after every `init` |
-| `nvcf-cli api-key generate --for function --description="…"` | Mint a function API key only (`invoke_function` scope) | When only function invocation is needed |
-| `nvcf-cli api-key generate --for task --description="…"` | Mint a task API key only | When only task operations are needed |
+| `nvcf-cli cluster delete --cluster-id=ID` | Remove cluster registration from ICMS | Confirm with user. Destroys ICMS state for the cluster. |
+| `nvcf-cli api-key generate --description="..." --expires-in=1h` | Mint both a function API key and a task API key (default) | Before invoking functions or creating tasks; run after every `init` |
+| `nvcf-cli api-key generate --for function --description="..."` | Mint a function API key only (`invoke_function` scope) | When only function invocation is needed |
+| `nvcf-cli api-key generate --for task --description="..."` | Mint a task API key only | When only task operations are needed |
 | `nvcf-cli function create --input-file=<json>` | Create function metadata in ICMS | First step of any function deploy; use `functionType: "LLM"` and `models[].llmConfig` for LLM functions |
 | `nvcf-cli function deploy create --input-file=<json>` | Schedule a deployment of a created function | Waits for ACTIVE before returning (timeout 900s) |
 | `nvcf-cli function invoke --input-file=<json>` | Invoke a deployed function | Requires API key (not admin token) |
-| `nvcf-cli function delete --function-id=ID --version-id=VID` | Remove a function and its deployment | **Confirm with user.** |
+| `nvcf-cli function delete --function-id=ID --version-id=VID` | Remove a function and its deployment | Confirm with user. |
 | `nvcf-cli task create --name=X --gpu=H100 --instance-type=Y --image=Z` | Submit a container task; saves task ID to CLI state | Requires task API key; set `NVCF_BASE_NVCT_URL` to the NVCT gateway endpoint |
 | `nvcf-cli task create --name=X --gpu=H100 --instance-type=Y --helm-chart=Z` | Submit a Helm task | Same as container task; `--helm-chart` replaces `--image` |
 | `nvcf-cli task create --input-file=<json>` | Submit a task from a JSON config file | Recommended for repeatable configurations |
@@ -176,7 +218,7 @@ After `init`, the credentials live in `~/.nvcf-cli.state`, so later commands wor
 | `nvcf-cli task events [taskId]` | Stream lifecycle events for a task | |
 | `nvcf-cli task results [taskId]` | List result artifacts for a completed task | Result upload not yet supported; returns empty list for `NONE` strategy |
 | `nvcf-cli task cancel [taskId]` | Cancel a queued or running task | |
-| `nvcf-cli task delete [taskId]` | Delete a task record | **Confirm with user.** |
+| `nvcf-cli task delete [taskId]` | Delete a task record | Confirm with user. |
 | `nvcf-cli task update-secrets [taskId] --secrets NAME=value` | Update secrets on a task; supplied secrets are added or updated by name, existing secrets not in the request are preserved | |
 | `nvcf-cli task bulk --task-ids=ID1,ID2` | Fetch details for multiple tasks in one call | |
 
@@ -202,36 +244,36 @@ Session stickiness uses `x-multi-turn-session-id` for chat completions and Respo
 
 For step-by-step playbooks, load the prompt that matches the user's intent:
 
-- **Install from scratch.** [prompts/install-from-scratch.md](prompts/install-from-scratch.md) — k3d cluster → preflight → up → deploy a smoke function.
-- **Add a new compute plane.** [prompts/add-compute-plane.md](prompts/add-compute-plane.md): register and install a compute plane against an existing control plane.
-- **Deploy and invoke a function.** [prompts/deploy-and-invoke.md](prompts/deploy-and-invoke.md) — create → deploy → API key → invoke, including the LLM create/invoke variant.
-- **Diagnose a failed install.** [prompts/diagnose-failed-install.md](prompts/diagnose-failed-install.md) — `status --json` → identify failed component → kubectl describe → remediation.
-- **Rotate JWKS.** [prompts/rotate-cluster-jwks.md](prompts/rotate-cluster-jwks.md) — when PSAT auth starts failing.
-- **Tear down.** [prompts/teardown.md](prompts/teardown.md) — `down --plan-only` first, then real run. `down --cluster-name=X` for one compute plane (orchestrator: drain + uninstall + cluster delete); `uninstall --control-plane` for the control plane (per-plane primitive); `down --all --confirm` for everything; `uninstall --no-apply <plane> | kubectl delete -f -` for GitOps.
-- **Create and run a task.** [prompts/create-and-run-task.md](prompts/create-and-run-task.md) — mint API keys → task create (container or Helm) → monitor with `task get` / `task events` → retrieve results → cleanup.
+- Install from scratch. [prompts/install-from-scratch.md](prompts/install-from-scratch.md) ,  k3d cluster -> preflight -> up -> deploy a smoke function.
+- Add a new compute plane. [prompts/add-compute-plane.md](prompts/add-compute-plane.md): register and install a compute plane against an existing control plane.
+- Deploy and invoke a function. [prompts/deploy-and-invoke.md](prompts/deploy-and-invoke.md) ,  create -> deploy -> API key -> invoke, including the LLM create/invoke variant.
+- Diagnose a failed install. [prompts/diagnose-failed-install.md](prompts/diagnose-failed-install.md) ,  `status --json` -> identify failed component -> kubectl describe -> remediation.
+- Rotate JWKS. [prompts/rotate-cluster-jwks.md](prompts/rotate-cluster-jwks.md) ,  when PSAT auth starts failing.
+- Tear down. [prompts/teardown.md](prompts/teardown.md) ,  `down --plan-only` first, then real run. `down --cluster-name=X` for one compute plane (orchestrator: drain + uninstall + cluster delete); `uninstall --control-plane` for the control plane (per-plane primitive); `down --all --confirm` for everything; `uninstall --no-apply <plane> | kubectl delete -f -` for GitOps.
+- Create and run a task. [prompts/create-and-run-task.md](prompts/create-and-run-task.md) ,  mint API keys -> task create (container or Helm) -> monitor with `task get` / `task events` -> retrieve results -> cleanup.
 
 ## Reference
 
-- [reference/commands.md](reference/commands.md) — full subcommand cheat sheet
-- [reference/flags.md](reference/flags.md) — global + per-command flags
-- [reference/exit-codes.md](reference/exit-codes.md) — what each non-zero exit means
-- [reference/troubleshooting.md](reference/troubleshooting.md) — known errors → remediation table
+- [reference/commands.md](reference/commands.md) ,  full subcommand cheat sheet
+- [reference/flags.md](reference/flags.md) ,  global + per-command flags
+- [reference/exit-codes.md](reference/exit-codes.md) ,  what each non-zero exit means
+- [reference/troubleshooting.md](reference/troubleshooting.md) ,  known errors -> remediation table
 
-## Safety rules — CRITICAL
+## Safety rules ,  CRITICAL
 
-**NEVER do these without explicit user confirmation:**
+NEVER do these without explicit user confirmation:
 
-- `nvcf-cli self-hosted down` or `uninstall` in any form — destructive. **ALWAYS run with `--plan-only` (`down`) or `--no-apply` (`uninstall`) first** and show the user what would happen. State which compute plane(s) and whether persistent state would be wiped.
-- `nvcf-cli self-hosted down --remove-persistent` (or `uninstall --remove-persistent`) — deletes Cassandra rows, OpenBao seal keys, sr-default user data. **Loss is unrecoverable.** Confirm explicitly that this is what the user wants.
-- `nvcf-cli self-hosted uninstall --control-plane --force-with-registered-clusters` — orphans every registered compute plane (PSAT auth breaks immediately). State the consequence before passing this flag.
+- `nvcf-cli self-hosted down` or `uninstall` in any form ,  destructive. ALWAYS run with `--plan-only` (`down`) or `--no-apply` (`uninstall`) first and show the user what would happen. State which compute plane(s) and whether persistent state would be wiped.
+- `nvcf-cli self-hosted down --remove-persistent` (or `uninstall --remove-persistent`) ,  deletes Cassandra rows, OpenBao seal keys, sr-default user data. Loss is unrecoverable. Confirm explicitly that this is what the user wants.
+- `nvcf-cli self-hosted uninstall --control-plane --force-with-registered-clusters` ,  orphans every registered compute plane (PSAT auth breaks immediately). State the consequence before passing this flag.
 - `nvcf-cli self-hosted down --all` nukes everything. Always show the registered clusters (`nvcf-cli cluster list-registered --nca-id=<nca-id>`) and get confirmation.
-- `nvcf-cli cluster delete` — removes the cluster's ICMS registration; the compute plane immediately stops being able to authenticate.
-- `nvcf-cli function delete` — removes a function and any active deployment.
-- `nvcf-cli task delete` — permanently removes the task record. Stop, state the task ID and current status, then wait for a subsequent user reply that explicitly confirms deletion of that specific task before running this command. Do not treat the user's original delete request as confirmation.
-- Any raw `helm uninstall` or `kubectl delete pvc/pv` — affects persistent state. Prefer `nvcf-cli self-hosted down` (orchestrator) or `uninstall` (per-plane) which handle this safely.
+- `nvcf-cli cluster delete` ,  removes the cluster's ICMS registration; the compute plane immediately stops being able to authenticate.
+- `nvcf-cli function delete` ,  removes a function and any active deployment.
+- `nvcf-cli task delete` ,  permanently removes the task record. Stop, state the task ID and current status, then wait for a subsequent user reply that explicitly confirms deletion of that specific task before running this command. Do not treat the user's original delete request as confirmation.
+- Any raw `helm uninstall` or `kubectl delete pvc/pv` ,  affects persistent state. Prefer `nvcf-cli self-hosted down` (orchestrator) or `uninstall` (per-plane) which handle this safely.
 - Any `--force` flag (`--force-with-registered-clusters`, `--confirm` in non-interactive contexts).
 
-**ALWAYS do these:**
+ALWAYS do these:
 
 - Run `nvcf-cli self-hosted status` before assuming a cluster exists / is healthy.
 - Show the planned action (cluster name, function name, GPU type, cost if known) before creating.
@@ -239,10 +281,10 @@ For step-by-step playbooks, load the prompt that matches the user's intent:
 - Confirm exact resource names before deletion. Match against `cluster list-registered` / `function list` output.
 - In CI / non-interactive contexts, use `--non-interactive --token=$JWT`. Never propose interactive `nvcf-cli init` when `$CI` is set.
 
-**NEVER paste these into chat / logs / feedback:**
+NEVER paste these into chat / logs / feedback:
 
 - Admin tokens (full JWT). Show the first 8 chars + `...` if you must reference one.
-- API keys (`nvapi-…`).
+- API keys (`nvapi-...`).
 - Contents of `~/.nvcf-cli.state` or any kubeconfig.
 - Any data marked secret in helmfile values.
 
@@ -263,7 +305,7 @@ For step-by-step playbooks, load the prompt that matches the user's intent:
 - `--accessible`: plain output without spinners, with verbose state markers (`[completed]`, `[running]`, `[pending]`, `[failed]`). For screen readers and constrained terminals.
 - (no flag): Bubbletea TTY dashboard. Default in a TTY of at least 100x30. Don't use under an agent (cursor-up sequences are noisy).
 
-Auto-detect picks the right mode for whatever stdout/stderr is. The CLI also honors `NO_COLOR` (any value → forces plain), `TERM=dumb` (forces plain), and `CI=truthy` (forces plain even on a fake TTY). When the terminal is smaller than 100×30, the bubbletea renderer falls back to a compact layout. Explicit `--json` is the right call for agent piping.
+Auto-detect picks the right mode for whatever stdout/stderr is. The CLI also honors `NO_COLOR` (any value -> forces plain), `TERM=dumb` (forces plain), and `CI=truthy` (forces plain even on a fake TTY). When the terminal is smaller than 100x30, the bubbletea renderer falls back to a compact layout. Explicit `--json` is the right call for agent piping.
 
 ## On failure
 
@@ -280,7 +322,7 @@ Other `nvcf-cli` failures emit structured `phase_failed` events in JSON:
  "retryClass":"backoff","retryAfterSec":60,
  "remediation":["kubectl describe pod -n cassandra-system cassandra-0",
                 "Re-run with --debug for verbose helmfile output"],
- "raw":{"subprocess":"helmfile","exitCode":1,"stderrTail":"…","kubernetesReason":"FailedScheduling"}}
+ "raw":{"subprocess":"helmfile","exitCode":1,"stderrTail":"...","kubernetesReason":"FailedScheduling"}}
 ```
 
 The `retryClass` field tells the agent how to handle the failure:
@@ -290,10 +332,10 @@ The `retryClass` field tells the agent how to handle the failure:
 | `immediate` | Transient blip | Retry the same `up` command now |
 | `backoff` | Rate limit / pending operation | Wait `retryAfterSec` seconds, then retry |
 | `after_remediation` | Operator must intervene | Surface `errMessage` + `remediation`, STOP. Don't auto-retry. |
-| `none` | Non-retryable | Same as `after_remediation` — surface and stop |
+| `none` | Non-retryable | Same as `after_remediation` ,  surface and stop |
 | `unknown` | Classifier unsure | Treat conservatively: surface and stop |
 
-Never re-run with `--force` (no command takes one). The `raw` block carries the underlying signal (subprocess exit, HTTP status, K8s reason) — quote relevant fields when explaining failures to the user, but don't dump `stderrTail` verbatim into chat without scanning for secrets first.
+Never re-run with `--force` (no command takes one). The `raw` block carries the underlying signal (subprocess exit, HTTP status, K8s reason) ,  quote relevant fields when explaining failures to the user, but don't dump `stderrTail` verbatim into chat without scanning for secrets first.
 
 ## Quick command reference
 
@@ -303,20 +345,20 @@ nvcf-cli self-hosted up --cluster-name=NAME   # one-shot install
 nvcf-cli self-hosted status                   # snapshot
 nvcf-cli self-hosted status --watch           # live
 nvcf-cli init                                 # mint admin token (clears all saved API keys)
-nvcf-cli cluster register …                   # register cluster
+nvcf-cli cluster register ...                   # register cluster
 nvcf-cli cluster list-registered --nca-id=<nca-id> # list self-hosted registrations
-nvcf-cli api-key generate --description=…     # mint both function and task API keys (run after every init)
-nvcf-cli api-key generate --for function …    # function key only
-nvcf-cli api-key generate --for task …        # task key only
-nvcf-cli function create --input-file=…       # create function
+nvcf-cli api-key generate --description=...     # mint both function and task API keys (run after every init)
+nvcf-cli api-key generate --for function ...    # function key only
+nvcf-cli api-key generate --for task ...        # task key only
+nvcf-cli function create --input-file=...       # create function
 nvcf-cli function create --function-type=LLM --llm-model=<spec>  # create LLM function metadata
 nvcf-cli function create --name=llm-helm --inference-url=/ --inference-port=8000 \
   --function-type=LLM --helm-chart=<chart> --helm-chart-service=<service> --llm-model=<spec>
 nvcf-cli function update --llm-model-update=<spec>  # update LLM routing/token limits
-nvcf-cli function deploy create --input-file=…
-nvcf-cli function invoke --input-file=…
+nvcf-cli function deploy create --input-file=...
+nvcf-cli function invoke --input-file=...
 
-# Task commands — requires NVCF_BASE_NVCT_URL=http://<nvct-gateway>
+# Task commands ,  requires NVCF_BASE_NVCT_URL=http://<nvct-gateway>
 nvcf-cli task create --name=X --gpu=H100 --instance-type=Y --image=Z
 nvcf-cli task create --input-file=task.json   # from JSON config
 nvcf-cli task list                            # list all tasks
